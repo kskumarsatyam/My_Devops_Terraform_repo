@@ -43,7 +43,7 @@ stages:
 
           # 🔥 CLEAN INIT (NO AZURE DEVOPS TASK INTERFERENCE)
           terraform init `
-            -backend-config="storage_account_name=mystorageaccount123" `
+            -backend-config="storage_account_name=mystorageacct15665542178" `
             -backend-config="container_name=tfstate" `
             -backend-config="key=terraform.tfstate" `
             -backend-config="resource_group_name=myResourceGroup"
