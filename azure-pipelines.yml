@@ -89,7 +89,7 @@ stages:
           - task: AzureCLI@2
             displayName: "Terraform Apply"
             inputs:
-              azureSubscription: 'YOUR-SERVICE-CONNECTION'
+              azureSubscription: 'devoptoazureconnection'
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
