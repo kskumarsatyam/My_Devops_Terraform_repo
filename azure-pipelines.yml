@@ -1,80 +1,67 @@
 trigger:
-- none
+- main
+
+resources:
+  repositories:
+    - repository: terraformstage
+      type: git
+      name: terraformstage
 
 variables:
-  terraformVersion: '1.5.0'
-  workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
-
-  backendResourceGroup: 'myResourceGroup'
-  backendStorageAccount: 'mystorageacct15665542178'
-  backendContainerName: 'tfstate'
-  backendKey: 'terraform.tfstate'
+  workingDir: $(Build.SourcesDirectory)/terraformstage/staged
+  tfPlanFile: tfplan
 
 stages:
 
-# =====================================================
-# STAGE 1: PLAN
-# =====================================================
+# =========================
+# Stage 1 - Terraform Plan
+# =========================
 - stage: Plan
-  displayName: Terraform Plan
-
+  displayName: "Terraform Plan Stage"
   jobs:
-  - job: PlanJob
+  - job: TerraformPlan
     pool:
       name: mypool
 
     steps:
-    - checkout: self
+    - checkout: terraformstage
 
-    - task: TerraformInstaller@1
-      inputs:
-        terraformVersion: $(terraformVersion)
+    - script: terraform --version
+      displayName: "Terraform Version"
 
-    - task: AzureCLI@2
-      displayName: Terraform Init & Plan
-      inputs:
-        azureSubscription: devoptoazureconnection
-        scriptType: ps
-        scriptLocation: inlineScript
-        addSpnToEnvironment: true
-        inlineScript: |
-          cd $(workingDirectory)
+    # Backend init (REMOTE STATE)
+    - script: |
+        cd $(workingDir)
+        terraform init \
+          -backend-config="myResourceGroup=$(TF_STATE_RG)" \
+          -backend-config="mystorageacct15665542178=$(TF_STATE_SA)" \
+          -backend-config="tfstate=$(TF_STATE_CONTAINER)" \
+          -backend-config="terraform.tfstate=$(TF_STATE_KEY)"
+      displayName: "Terraform Init (Remote Backend)"
 
-          # Correct Service Principal authentication
-          $env:ARM_CLIENT_ID=$env:servicePrincipalId
-          $env:ARM_CLIENT_SECRET=$env:servicePrincipalKey
-          $env:ARM_TENANT_ID=$env:tenantId
-          $env:ARM_SUBSCRIPTION_ID=$env:AZURE_SUBSCRIPTION_ID
-
-          terraform init `
-            -backend-config="resource_group_name=$(backendResourceGroup)" `
-            -backend-config="storage_account_name=$(backendStorageAccount)" `
-            -backend-config="container_name=$(backendContainerName)" `
-            -backend-config="key=$(backendKey)"
-
-          terraform plan `
-            -var-file="terraform.tfvars" `
-            -out=tfplan
+    - script: |
+        cd $(workingDir)
+        terraform plan -out=$(tfPlanFile)
+      displayName: "Terraform Plan"
 
     - task: PublishBuildArtifacts@1
       inputs:
-        pathToPublish: '$(workingDirectory)/tfplan'
-        artifactName: terraformPlan
-        publishLocation: Container
+        PathtoPublish: "$(workingDir)/$(tfPlanFile)"
+        ArtifactName: "terraformPlan"
+        publishLocation: "Container"
 
 
-# =====================================================
-# STAGE 2: APPLY (APPROVAL REQUIRED)
-# =====================================================
+# =========================
+# Stage 2 - Terraform Apply
+# =========================
 - stage: Apply
-  displayName: Terraform Apply
+  displayName: "Terraform Apply Stage"
   dependsOn: Plan
   condition: succeeded()
 
   jobs:
-  - deployment: ApplyJob
-    displayName: Apply Terraform
-    environment: terraform-approval-env
+  - deployment: TerraformApply
+    environment: "terraform-approval-env"
     pool:
       name: mypool
 
@@ -83,39 +70,26 @@ stages:
         deploy:
           steps:
 
-          - checkout: self
-
-          - task: TerraformInstaller@1
-            inputs:
-              terraformVersion: $(terraformVersion)
+          - checkout: terraformstage
 
           - task: DownloadBuildArtifacts@0
             inputs:
-              buildType: current
-              downloadType: single
-              artifactName: terraformPlan
-              downloadPath: '$(System.DefaultWorkingDirectory)/staged'
+              buildType: "current"
+              downloadType: "single"
+              artifactName: "terraformPlan"
+              downloadPath: "$(System.ArtifactsDirectory)"
 
-          - task: AzureCLI@2
-            displayName: Terraform Apply
-            inputs:
-              azureSubscription: devoptoazureconnection
-              scriptType: ps
-              scriptLocation: inlineScript
-              addSpnToEnvironment: true
-              inlineScript: |
-                cd $(workingDirectory)
+          # IMPORTANT: Same backend config again
+          - script: |
+              cd $(workingDir)
+              terraform init \
+                -backend-config="myResourceGroup=$(TF_STATE_RG)" \
+                -backend-config="mystorageacct15665542178=$(TF_STATE_SA)" \
+                -backend-config="tfstate=$(TF_STATE_CONTAINER)" \
+                -backend-config="terraform.tfstate=$(TF_STATE_KEY)"
+            displayName: "Terraform Init (Remote Backend)"
 
-                # Correct Service Principal authentication
-                $env:ARM_CLIENT_ID=$env:servicePrincipalId
-                $env:ARM_CLIENT_SECRET=$env:servicePrincipalKey
-                $env:ARM_TENANT_ID=$env:tenantId
-                $env:ARM_SUBSCRIPTION_ID=$env:AZURE_SUBSCRIPTION_ID
-
-                terraform init `
-                  -backend-config="resource_group_name=$(backendResourceGroup)" `
-                  -backend-config="storage_account_name=$(backendStorageAccount)" `
-                  -backend-config="container_name=$(backendContainerName)" `
-                  -backend-config="key=$(backendKey)"
-
-                terraform apply tfplan
+          - script: |
+              cd $(workingDir)
+              terraform apply -auto-approve "$(System.ArtifactsDirectory)/terraformPlan/$(tfPlanFile)"
+            displayName: "Terraform Apply"
