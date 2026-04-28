@@ -33,19 +33,19 @@ stages:
       displayName: "Terraform Init & Plan"
       inputs:
         azureSubscription: 'devoptoazureconnection'
-        scriptType: bash
+        scriptType: ps
         scriptLocation: inlineScript
         inlineScript: |
           cd $(workingDirectory)
 
-          terraform init \
-            -backend-config="resource_group_name=$(backendResourceGroup)" \
-            -backend-config="storage_account_name=$(backendStorageAccount)" \
-            -backend-config="container_name=$(backendContainerName)" \
+          terraform init `
+            -backend-config="resource_group_name=$(backendResourceGroup)" `
+            -backend-config="storage_account_name=$(backendStorageAccount)" `
+            -backend-config="container_name=$(backendContainerName)" `
             -backend-config="key=$(backendKey)"
 
-          terraform plan \
-            -var-file="terraform.tfvars" \
+          terraform plan `
+            -var-file="terraform.tfvars" `
             -out=tfplan
 
     - task: PublishBuildArtifacts@1
@@ -67,6 +67,7 @@ stages:
   - deployment: ApplyJob
     displayName: "Apply Terraform"
     environment: 'terraform-approval-env'
+    pool: mypool
 
     strategy:
       runOnce:
@@ -90,15 +91,15 @@ stages:
             displayName: "Terraform Apply"
             inputs:
               azureSubscription: 'devoptoazureconnection'
-              scriptType: bash
+              scriptType: ps
               scriptLocation: inlineScript
               inlineScript: |
                 cd $(workingDirectory)
 
-                terraform init \
-                  -backend-config="resource_group_name=$(backendResourceGroup)" \
-                  -backend-config="storage_account_name=$(backendStorageAccount)" \
-                  -backend-config="container_name=$(backendContainerName)" \
+                terraform init `
+                  -backend-config="resource_group_name=$(backendResourceGroup)" `
+                  -backend-config="storage_account_name=$(backendStorageAccount)" `
+                  -backend-config="container_name=$(backendContainerName)" `
                   -backend-config="key=$(backendKey)"
 
                 terraform apply tfplan
