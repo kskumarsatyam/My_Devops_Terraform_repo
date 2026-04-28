@@ -74,7 +74,7 @@ stages:
           - task: DownloadBuildArtifacts@0
             inputs:
               artifactName: tfplan
-              downloadPath: '$(System.DefaultWorkingDirectory)'
+              downloadPath: '$(System.DefaultWorkingDirectory)\staged\tfplan'
 
           - task: AzureCLI@2
             inputs:
