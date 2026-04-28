@@ -17,12 +17,16 @@ steps:
     terraformVersion: 'latest'
 
 - task: TerraformTask@5
-  displayName: terraforminit
+  displayName: terraform init
   inputs:
     provider: 'azurerm'
     command: 'init'
     workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
     backendServiceArm: 'devoptoazureconnection'
+    backendAzureRmResourceGroupName: 'myResourceGroup'
+    backendAzureRmStorageAccountName: 'mystorageaccount123'
+    backendAzureRmContainerName: 'tfstate'
+    backendAzureRmKey: 'terraform.tfstate'
 
 - task: TerraformTask@5
   inputs:
