@@ -2,11 +2,22 @@ trigger:
 - none
 
 variables:
+  terraformVersion: '1.5.0'
   workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
+
+  backendResourceGroup: 'myResourceGroup'
+  backendStorageAccount: 'mystorageacct15665542178'
+  backendContainerName: 'tfstate'
+  backendKey: 'terraform.tfstate'
 
 stages:
 
+# =====================================================
+# STAGE 1: PLAN
+# =====================================================
 - stage: Plan
+  displayName: Terraform Plan
+
   jobs:
   - job: PlanJob
     pool:
@@ -17,22 +28,29 @@ stages:
 
     - task: TerraformInstaller@1
       inputs:
-        terraformVersion: '1.5.0'
+        terraformVersion: $(terraformVersion)
 
     - task: AzureCLI@2
-      displayName: "Terraform Init & Plan"
+      displayName: Terraform Init & Plan
       inputs:
         azureSubscription: devoptoazureconnection
         scriptType: ps
         scriptLocation: inlineScript
+        addSpnToEnvironment: true
         inlineScript: |
           cd $(workingDirectory)
 
+          # Force Service Principal auth for Terraform
+          $env:ARM_CLIENT_ID=$env:servicePrincipalId
+          $env:ARM_CLIENT_SECRET=$env:servicePrincipalKey
+          $env:ARM_TENANT_ID=$env:tenantId
+          $env:ARM_SUBSCRIPTION_ID=$env:subscriptionId
+
           terraform init `
-            -backend-config="resource_group_name=myResourceGroup" `
-            -backend-config="storage_account_name=mystorageacct15665542178" `
-            -backend-config="container_name=tfstate" `
-            -backend-config="key=terraform.tfstate"
+            -backend-config="resource_group_name=$(backendResourceGroup)" `
+            -backend-config="storage_account_name=$(backendStorageAccount)" `
+            -backend-config="container_name=$(backendContainerName)" `
+            -backend-config="key=$(backendKey)"
 
           terraform plan `
             -var-file="terraform.tfvars" `
@@ -45,10 +63,17 @@ stages:
         publishLocation: Container
 
 
+# =====================================================
+# STAGE 2: APPLY (WITH APPROVAL)
+# =====================================================
 - stage: Apply
+  displayName: Terraform Apply
   dependsOn: Plan
+  condition: succeeded()
+
   jobs:
   - deployment: ApplyJob
+    displayName: Apply Terraform
     environment: terraform-approval-env
     pool:
       name: mypool
@@ -62,7 +87,7 @@ stages:
 
           - task: TerraformInstaller@1
             inputs:
-              terraformVersion: '1.5.0'
+              terraformVersion: $(terraformVersion)
 
           - task: DownloadBuildArtifacts@0
             inputs:
@@ -72,18 +97,25 @@ stages:
               downloadPath: '$(System.DefaultWorkingDirectory)/staged'
 
           - task: AzureCLI@2
-            displayName: "Terraform Apply"
+            displayName: Terraform Apply
             inputs:
               azureSubscription: devoptoazureconnection
               scriptType: ps
               scriptLocation: inlineScript
+              addSpnToEnvironment: true
               inlineScript: |
                 cd $(workingDirectory)
 
+                # Force Service Principal auth
+                $env:ARM_CLIENT_ID=$env:servicePrincipalId
+                $env:ARM_CLIENT_SECRET=$env:servicePrincipalKey
+                $env:ARM_TENANT_ID=$env:tenantId
+                $env:ARM_SUBSCRIPTION_ID=$env:subscriptionId
+
                 terraform init `
-                  -backend-config="resource_group_name=myResourceGroup" `
-                  -backend-config="storage_account_name=mystorageacct15665542178" `
-                  -backend-config="container_name=tfstate" `
-                  -backend-config="key=terraform.tfstate"
+                  -backend-config="resource_group_name=$(backendResourceGroup)" `
+                  -backend-config="storage_account_name=$(backendStorageAccount)" `
+                  -backend-config="container_name=$(backendContainerName)" `
+                  -backend-config="key=$(backendKey)"
 
                 terraform apply tfplan
