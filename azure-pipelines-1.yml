@@ -17,13 +17,13 @@ stages:
 
     - checkout: self
 
-    # Terraform Install
+    # Install Terraform
     - task: TerraformInstaller@1
       displayName: "Install Terraform"
       inputs:
         terraformVersion: 'latest'
 
-    # Terraform Init
+    # INIT (FIXED - NO azuread_auth)
     - task: TerraformTask@5
       displayName: "Terraform Init"
       inputs:
@@ -36,7 +36,7 @@ stages:
         backendAzureRmContainerName: 'tfstate'
         backendAzureRmKey: 'terraform.tfstate'
 
-    # Terraform Plan
+    # PLAN
     - task: TerraformTask@5
       displayName: "Terraform Plan"
       inputs:
@@ -45,7 +45,7 @@ stages:
         workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
         environmentServiceNameAzureRM: 'devoptoazureconnection'
 
-    # Publish plan as artifact (important for apply stage)
+    # Publish plan
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(System.DefaultWorkingDirectory)/staged'
@@ -62,7 +62,7 @@ stages:
 
   jobs:
   - deployment: ApplyJob
-    environment: "terraform-approval-env"   # 👈 add approval here
+    environment: "terraform-approval-env"
     strategy:
       runOnce:
         deploy:
@@ -70,7 +70,7 @@ stages:
 
           - checkout: self
 
-          # Download artifact from Plan stage
+          # Download artifact
           - task: DownloadBuildArtifacts@0
             inputs:
               buildType: 'current'
@@ -78,13 +78,13 @@ stages:
               artifactName: 'tfcode'
               downloadPath: '$(System.DefaultWorkingDirectory)'
 
-          # Terraform Install
+          # Install Terraform
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
               terraformVersion: 'latest'
 
-          # Terraform Init (IMPORTANT: must re-init backend)
+          # INIT (same backend, NO azuread_auth)
           - task: TerraformTask@5
             displayName: "Terraform Init"
             inputs:
@@ -97,7 +97,7 @@ stages:
               backendAzureRmContainerName: 'tfstate'
               backendAzureRmKey: 'terraform.tfstate'
 
-          # Terraform Apply
+          # APPLY
           - task: TerraformTask@5
             displayName: "Terraform Apply"
             inputs:
