@@ -8,7 +8,7 @@ resources:
       name: terraformstage
 
 variables:
-  workingDir: $(Build.SourcesDirectory)/terraformstage/staged
+  workingDir: $(Build.SourcesDirectory)/staged
   tfPlanFile: tfplan
 
 stages:
