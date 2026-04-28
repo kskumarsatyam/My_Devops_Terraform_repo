@@ -14,53 +14,71 @@ variables:
 stages:
 
 # =========================
-# Stage 1 - Terraform Plan
+# STAGE 1 - PLAN
 # =========================
 - stage: Plan
-  displayName: "Terraform Plan Stage"
+  displayName: "Terraform Plan"
   jobs:
-  - job: TerraformPlan
+  - job: PlanJob
     pool:
       name: mypool
 
     steps:
     - checkout: terraformstage
 
-    - script: terraform --version
-      displayName: "Terraform Version"
+    # 🔽 Install latest Terraform
+    - powershell: |
+        Write-Host "Fetching latest Terraform version..."
 
-    # Backend init (REMOTE STATE)
+        $latest = (Invoke-RestMethod -Uri "https://checkpoint-api.hashicorp.com/v1/check/terraform").current_version
+        Write-Host "Latest Terraform version: $latest"
+
+        $url = "https://releases.hashicorp.com/terraform/$latest/terraform_${latest}_windows_amd64.zip"
+        $zipPath = "$(Agent.TempDirectory)\terraform.zip"
+        $extractPath = "$(Agent.TempDirectory)\terraform"
+
+        Invoke-WebRequest -Uri $url -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+        $env:PATH = "$extractPath;$env:PATH"
+
+        terraform --version
+
+        Write-Host "##vso[task.setvariable variable=TF_VERSION;isOutput=true]$latest"
+      name: InstallTF
+      displayName: "Install Terraform (Latest)"
+
+    # 🔽 Terraform Init (backend already in backend.tf)
     - script: |
         cd $(workingDir)
-        terraform init \
-          -backend-config="myResourceGroup=$(TF_STATE_RG)" \
-          -backend-config="mystorageacct15665542178=$(TF_STATE_SA)" \
-          -backend-config="tfstate=$(TF_STATE_CONTAINER)" \
-          -backend-config="terraform.tfstate=$(TF_STATE_KEY)"
-      displayName: "Terraform Init (Remote Backend)"
+        terraform init -reconfigure
+      displayName: "Terraform Init"
 
     - script: |
         cd $(workingDir)
         terraform plan -out=$(tfPlanFile)
       displayName: "Terraform Plan"
 
+    # 🔽 Publish plan artifact
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: "$(workingDir)/$(tfPlanFile)"
         ArtifactName: "terraformPlan"
-        publishLocation: "Container"
 
 
 # =========================
-# Stage 2 - Terraform Apply
+# STAGE 2 - APPLY
 # =========================
 - stage: Apply
-  displayName: "Terraform Apply Stage"
+  displayName: "Terraform Apply"
   dependsOn: Plan
   condition: succeeded()
 
+  variables:
+    TF_VERSION: $[ stageDependencies.Plan.PlanJob.outputs['InstallTF.TF_VERSION'] ]
+
   jobs:
-  - deployment: TerraformApply
+  - deployment: ApplyJob
     environment: "terraform-approval-env"
     pool:
       name: mypool
@@ -72,6 +90,24 @@ stages:
 
           - checkout: terraformstage
 
+          # 🔽 Install SAME Terraform version
+          - powershell: |
+              $version = "$(TF_VERSION)"
+              Write-Host "Installing Terraform $version"
+
+              $url = "https://releases.hashicorp.com/terraform/$version/terraform_${version}_windows_amd64.zip"
+              $zipPath = "$(Agent.TempDirectory)\terraform.zip"
+              $extractPath = "$(Agent.TempDirectory)\terraform"
+
+              Invoke-WebRequest -Uri $url -OutFile $zipPath
+              Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+              $env:PATH = "$extractPath;$env:PATH"
+
+              terraform --version
+            displayName: "Install Terraform (Same Version)"
+
+          # 🔽 Download plan artifact
           - task: DownloadBuildArtifacts@0
             inputs:
               buildType: "current"
@@ -79,16 +115,13 @@ stages:
               artifactName: "terraformPlan"
               downloadPath: "$(System.ArtifactsDirectory)"
 
-          # IMPORTANT: Same backend config again
+          # 🔽 Init using backend.tf
           - script: |
               cd $(workingDir)
-              terraform init \
-                -backend-config="myResourceGroup=$(TF_STATE_RG)" \
-                -backend-config="mystorageacct15665542178=$(TF_STATE_SA)" \
-                -backend-config="tfstate=$(TF_STATE_CONTAINER)" \
-                -backend-config="terraform.tfstate=$(TF_STATE_KEY)"
-            displayName: "Terraform Init (Remote Backend)"
+              terraform init -reconfigure
+            displayName: "Terraform Init"
 
+          # 🔽 Apply plan
           - script: |
               cd $(workingDir)
               terraform apply -auto-approve "$(System.ArtifactsDirectory)/terraformPlan/$(tfPlanFile)"
