@@ -16,37 +16,44 @@ stages:
 
     - checkout: self
 
-    - task: TerraformInstaller@1
+    # Azure Login + Terraform (FULL CONTROL)
+    - task: AzureCLI@2
       inputs:
-        terraformVersion: 'latest'
+        azureSubscription: 'devoptoazureconnection'
+        scriptType: ps
+        scriptLocation: inlineScript
+        inlineScript: |
 
-    # 🔥 IMPORTANT FIX: Disable backend injection from task
-    - task: TerraformTask@5
-      displayName: "Terraform Init (FIXED)"
-      inputs:
-        provider: 'azurerm'
-        command: 'init'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
-        backendType: 'azurerm'
-        ensureBackend: false   # 🔥 CRITICAL FIX
-        backendServiceArm: 'devoptoazureconnection'
-        backendAzureRmResourceGroupName: 'myResourceGroup'
-        backendAzureRmStorageAccountName: 'mystorageaccount123'
-        backendAzureRmContainerName: 'tfstate'
-        backendAzureRmKey: 'terraform.tfstate'
+          Write-Host "Azure Login Success"
+          az account show
 
-    - task: TerraformTask@5
-      displayName: "Terraform Plan"
-      inputs:
-        provider: 'azurerm'
-        command: 'plan'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
-        environmentServiceNameAzureRM: 'devoptoazureconnection'
+          # Install Terraform
+          $latest = (Invoke-RestMethod https://checkpoint-api.hashicorp.com/v1/check/terraform).current_version
+          $zip = "$(Agent.TempDirectory)\tf.zip"
+          $dir = "$(Agent.ToolsDirectory)\terraform"
+
+          Invoke-WebRequest "https://releases.hashicorp.com/terraform/$latest/terraform_${latest}_windows_amd64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $dir -Force
+
+          $env:PATH = "$dir;$env:PATH"
+
+          terraform --version
+
+          cd "$(System.DefaultWorkingDirectory)\staged"
+
+          # 🔥 CLEAN INIT (NO AZURE DEVOPS TASK INTERFERENCE)
+          terraform init `
+            -backend-config="storage_account_name=mystorageaccount123" `
+            -backend-config="container_name=tfstate" `
+            -backend-config="key=terraform.tfstate" `
+            -backend-config="resource_group_name=myResourceGroup"
+
+          terraform plan -out=tfplan
 
     - task: PublishBuildArtifacts@1
       inputs:
-        PathtoPublish: '$(System.DefaultWorkingDirectory)/staged'
-        ArtifactName: 'tfcode'
+        PathtoPublish: '$(System.DefaultWorkingDirectory)\staged\tfplan'
+        ArtifactName: tfplan
 
 
 # =========================
@@ -54,11 +61,9 @@ stages:
 # =========================
 - stage: Apply
   dependsOn: Plan
-  condition: succeeded()
-
   jobs:
   - deployment: ApplyJob
-    environment: "terraform-approval-env"
+    environment: terraform-approval-env
     strategy:
       runOnce:
         deploy:
@@ -68,32 +73,31 @@ stages:
 
           - task: DownloadBuildArtifacts@0
             inputs:
-              buildType: 'current'
-              artifactName: 'tfcode'
+              artifactName: tfplan
               downloadPath: '$(System.DefaultWorkingDirectory)'
 
-          - task: TerraformInstaller@1
+          - task: AzureCLI@2
             inputs:
-              terraformVersion: 'latest'
+              azureSubscription: 'devoptoazureconnection'
+              scriptType: ps
+              scriptLocation: inlineScript
+              inlineScript: |
 
-          - task: TerraformTask@5
-            displayName: "Terraform Init (FIXED)"
-            inputs:
-              provider: 'azurerm'
-              command: 'init'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/tfcode/staged'
-              backendType: 'azurerm'
-              ensureBackend: false
-              backendServiceArm: 'devoptoazureconnection'
-              backendAzureRmResourceGroupName: 'myResourceGroup'
-              backendAzureRmStorageAccountName: 'mystorageaccount123'
-              backendAzureRmContainerName: 'tfstate'
-              backendAzureRmKey: 'terraform.tfstate'
+                $latest = (Invoke-RestMethod https://checkpoint-api.hashicorp.com/v1/check/terraform).current_version
+                $zip = "$(Agent.TempDirectory)\tf.zip"
+                $dir = "$(Agent.ToolsDirectory)\terraform"
 
-          - task: TerraformTask@5
-            displayName: "Terraform Apply"
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/tfcode/staged'
-              environmentServiceNameAzureRM: 'devoptoazureconnection'
+                Invoke-WebRequest "https://releases.hashicorp.com/terraform/$latest/terraform_${latest}_windows_amd64.zip" -OutFile $zip
+                Expand-Archive $zip -DestinationPath $dir -Force
+
+                $env:PATH = "$dir;$env:PATH"
+
+                cd "$(System.DefaultWorkingDirectory)\staged"
+
+                terraform init `
+                  -backend-config="storage_account_name=mystorageaccount123" `
+                  -backend-config="container_name=tfstate" `
+                  -backend-config="key=terraform.tfstate" `
+                  -backend-config="resource_group_name=myResourceGroup"
+
+                terraform apply -auto-approve tfplan
