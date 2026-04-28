@@ -1,5 +1,5 @@
 trigger:
-- main
+- none
 
 resources:
   repositories:
@@ -26,40 +26,41 @@ stages:
     steps:
     - checkout: terraformstage
 
-    # 🔽 Install latest Terraform
+    # =========================
+    # Install Terraform (FIXED)
+    # =========================
     - powershell: |
         Write-Host "Fetching latest Terraform version..."
 
         $latest = (Invoke-RestMethod -Uri "https://checkpoint-api.hashicorp.com/v1/check/terraform").current_version
-        Write-Host "Latest Terraform version: $latest"
+        Write-Host "Latest Terraform: $latest"
 
         $url = "https://releases.hashicorp.com/terraform/$latest/terraform_${latest}_windows_amd64.zip"
-        $zipPath = "$(Agent.TempDirectory)\terraform.zip"
-        $extractPath = "$(Agent.TempDirectory)\terraform"
+        $zip = "$(Agent.TempDirectory)\terraform.zip"
+        $dir = "$(Agent.ToolsDirectory)\terraform"
 
-        Invoke-WebRequest -Uri $url -OutFile $zipPath
-        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+        Invoke-WebRequest -Uri $url -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath $dir -Force
 
-        $env:PATH = "$extractPath;$env:PATH"
+        # 🔥 Persist Terraform for ALL steps in this job
+        Write-Host "##vso[task.prependpath]$dir"
 
         terraform --version
-
-        Write-Host "##vso[task.setvariable variable=TF_VERSION;isOutput=true]$latest"
-      name: InstallTF
       displayName: "Install Terraform (Latest)"
 
-    # 🔽 Terraform Init (backend already in backend.tf)
+    # =========================
+    # Terraform Init
+    # =========================
     - script: |
-        cd $(workingDir)
-        terraform init -reconfigure
+        cd "$(workingDir)"
+        terraform init
       displayName: "Terraform Init"
 
     - script: |
-        cd $(workingDir)
+        cd "$(workingDir)"
         terraform plan -out=$(tfPlanFile)
       displayName: "Terraform Plan"
 
-    # 🔽 Publish plan artifact
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: "$(workingDir)/$(tfPlanFile)"
@@ -74,9 +75,6 @@ stages:
   dependsOn: Plan
   condition: succeeded()
 
-  variables:
-    TF_VERSION: $[ stageDependencies.Plan.PlanJob.outputs['InstallTF.TF_VERSION'] ]
-
   jobs:
   - deployment: ApplyJob
     environment: "terraform-approval-env"
@@ -90,24 +88,24 @@ stages:
 
           - checkout: terraformstage
 
-          # 🔽 Install SAME Terraform version
+          # =========================
+          # Install SAME Terraform version (safe consistency)
+          # =========================
           - powershell: |
-              $version = "$(TF_VERSION)"
-              Write-Host "Installing Terraform $version"
+              $latest = (Invoke-RestMethod -Uri "https://checkpoint-api.hashicorp.com/v1/check/terraform").current_version
 
-              $url = "https://releases.hashicorp.com/terraform/$version/terraform_${version}_windows_amd64.zip"
-              $zipPath = "$(Agent.TempDirectory)\terraform.zip"
-              $extractPath = "$(Agent.TempDirectory)\terraform"
+              $url = "https://releases.hashicorp.com/terraform/$latest/terraform_${latest}_windows_amd64.zip"
+              $zip = "$(Agent.TempDirectory)\terraform.zip"
+              $dir = "$(Agent.ToolsDirectory)\terraform"
 
-              Invoke-WebRequest -Uri $url -OutFile $zipPath
-              Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+              Invoke-WebRequest -Uri $url -OutFile $zip
+              Expand-Archive -Path $zip -DestinationPath $dir -Force
 
-              $env:PATH = "$extractPath;$env:PATH"
+              Write-Host "##vso[task.prependpath]$dir"
 
               terraform --version
-            displayName: "Install Terraform (Same Version)"
+            displayName: "Install Terraform (Latest)"
 
-          # 🔽 Download plan artifact
           - task: DownloadBuildArtifacts@0
             inputs:
               buildType: "current"
@@ -115,14 +113,15 @@ stages:
               artifactName: "terraformPlan"
               downloadPath: "$(System.ArtifactsDirectory)"
 
-          # 🔽 Init using backend.tf
+          # =========================
+          # Terraform Init (backend from backend.tf)
+          # =========================
           - script: |
-              cd $(workingDir)
-              terraform init -reconfigure
+              cd "$(workingDir)"
+              terraform init
             displayName: "Terraform Init"
 
-          # 🔽 Apply plan
           - script: |
-              cd $(workingDir)
+              cd "$(workingDir)"
               terraform apply -auto-approve "$(System.ArtifactsDirectory)/terraformPlan/$(tfPlanFile)"
             displayName: "Terraform Apply"
