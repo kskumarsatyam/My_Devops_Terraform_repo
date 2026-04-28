@@ -100,4 +100,5 @@ stages:
                   -backend-config="key=terraform.tfstate" `
                   -backend-config="resource_group_name=myResourceGroup"
 
-                terraform apply -auto-approve tfplan
+                terraform apply -auto-approve "$(Pipeline.Workspace)\tfplan\tfplan"
+            displayName: "Terraform Apply"
