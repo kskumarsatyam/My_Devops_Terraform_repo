@@ -7,36 +7,34 @@ pool:
 stages:
 
 # =========================
-# STAGE 1 - PLAN
+# PLAN
 # =========================
 - stage: Plan
-  displayName: "Terraform Plan"
   jobs:
   - job: PlanJob
     steps:
 
     - checkout: self
 
-    # Install Terraform
     - task: TerraformInstaller@1
-      displayName: "Install Terraform"
       inputs:
         terraformVersion: 'latest'
 
-    # INIT (FIXED - NO azuread_auth)
+    # 🔥 IMPORTANT FIX: Disable backend injection from task
     - task: TerraformTask@5
-      displayName: "Terraform Init"
+      displayName: "Terraform Init (FIXED)"
       inputs:
         provider: 'azurerm'
         command: 'init'
         workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
+        backendType: 'azurerm'
+        ensureBackend: false   # 🔥 CRITICAL FIX
         backendServiceArm: 'devoptoazureconnection'
         backendAzureRmResourceGroupName: 'myResourceGroup'
         backendAzureRmStorageAccountName: 'mystorageaccount123'
         backendAzureRmContainerName: 'tfstate'
         backendAzureRmKey: 'terraform.tfstate'
 
-    # PLAN
     - task: TerraformTask@5
       displayName: "Terraform Plan"
       inputs:
@@ -45,7 +43,6 @@ stages:
         workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
         environmentServiceNameAzureRM: 'devoptoazureconnection'
 
-    # Publish plan
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(System.DefaultWorkingDirectory)/staged'
@@ -53,10 +50,9 @@ stages:
 
 
 # =========================
-# STAGE 2 - APPLY
+# APPLY
 # =========================
 - stage: Apply
-  displayName: "Terraform Apply"
   dependsOn: Plan
   condition: succeeded()
 
@@ -70,34 +66,30 @@ stages:
 
           - checkout: self
 
-          # Download artifact
           - task: DownloadBuildArtifacts@0
             inputs:
               buildType: 'current'
-              downloadType: 'single'
               artifactName: 'tfcode'
               downloadPath: '$(System.DefaultWorkingDirectory)'
 
-          # Install Terraform
           - task: TerraformInstaller@1
-            displayName: "Install Terraform"
             inputs:
               terraformVersion: 'latest'
 
-          # INIT (same backend, NO azuread_auth)
           - task: TerraformTask@5
-            displayName: "Terraform Init"
+            displayName: "Terraform Init (FIXED)"
             inputs:
               provider: 'azurerm'
               command: 'init'
               workingDirectory: '$(System.DefaultWorkingDirectory)/tfcode/staged'
+              backendType: 'azurerm'
+              ensureBackend: false
               backendServiceArm: 'devoptoazureconnection'
               backendAzureRmResourceGroupName: 'myResourceGroup'
               backendAzureRmStorageAccountName: 'mystorageaccount123'
               backendAzureRmContainerName: 'tfstate'
               backendAzureRmKey: 'terraform.tfstate'
 
-          # APPLY
           - task: TerraformTask@5
             displayName: "Terraform Apply"
             inputs:
