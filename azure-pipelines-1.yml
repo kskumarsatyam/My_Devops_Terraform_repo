@@ -1,39 +1,107 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - none
 
-pool: mypool
+pool:
+  name: mypool
 
-steps:
+stages:
 
-- checkout: self
-- task: TerraformInstaller@1
-  displayName: terrform install
-  inputs:
-    terraformVersion: 'latest'
+# =========================
+# STAGE 1 - PLAN
+# =========================
+- stage: Plan
+  displayName: "Terraform Plan"
+  jobs:
+  - job: PlanJob
+    steps:
 
-- task: TerraformTask@5
-  displayName: terraform init
-  inputs:
-    provider: 'azurerm'
-    command: 'init'
-    workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
-    backendServiceArm: 'devoptoazureconnection'
-    backendAzureRmResourceGroupName: 'myResourceGroup'
-    backendAzureRmStorageAccountName: 'mystorageaccount123'
-    backendAzureRmContainerName: 'tfstate'
-    backendAzureRmKey: 'terraform.tfstate'
+    - checkout: self
 
-- task: TerraformTask@5
-  inputs:
-    provider: 'azurerm'
-    command: 'plan'
-    workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
-    environmentServiceNameAzureRM: 'devoptoazureconnection'
+    # Terraform Install
+    - task: TerraformInstaller@1
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: 'latest'
+
+    # Terraform Init
+    - task: TerraformTask@5
+      displayName: "Terraform Init"
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
+        backendServiceArm: 'devoptoazureconnection'
+        backendAzureRmResourceGroupName: 'myResourceGroup'
+        backendAzureRmStorageAccountName: 'mystorageaccount123'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'terraform.tfstate'
+
+    # Terraform Plan
+    - task: TerraformTask@5
+      displayName: "Terraform Plan"
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/staged'
+        environmentServiceNameAzureRM: 'devoptoazureconnection'
+
+    # Publish plan as artifact (important for apply stage)
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(System.DefaultWorkingDirectory)/staged'
+        ArtifactName: 'tfcode'
 
 
+# =========================
+# STAGE 2 - APPLY
+# =========================
+- stage: Apply
+  displayName: "Terraform Apply"
+  dependsOn: Plan
+  condition: succeeded()
 
+  jobs:
+  - deployment: ApplyJob
+    environment: "terraform-approval-env"   # 👈 add approval here
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - checkout: self
+
+          # Download artifact from Plan stage
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'tfcode'
+              downloadPath: '$(System.DefaultWorkingDirectory)'
+
+          # Terraform Install
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: 'latest'
+
+          # Terraform Init (IMPORTANT: must re-init backend)
+          - task: TerraformTask@5
+            displayName: "Terraform Init"
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/tfcode/staged'
+              backendServiceArm: 'devoptoazureconnection'
+              backendAzureRmResourceGroupName: 'myResourceGroup'
+              backendAzureRmStorageAccountName: 'mystorageaccount123'
+              backendAzureRmContainerName: 'tfstate'
+              backendAzureRmKey: 'terraform.tfstate'
+
+          # Terraform Apply
+          - task: TerraformTask@5
+            displayName: "Terraform Apply"
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/tfcode/staged'
+              environmentServiceNameAzureRM: 'devoptoazureconnection'
