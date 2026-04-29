@@ -11,6 +11,4 @@ provider "azurerm" {
   # Configuration options
 }
 
-  backend "azurerm" {}
-}
 
