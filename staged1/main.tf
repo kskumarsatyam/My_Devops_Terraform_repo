@@ -8,7 +8,7 @@ resource "azurerm_resource_group" "rg" {
 resource "azurerm_storage_account" "example" {
   for_each = azurerm_resource_group.rg
 
-  name                = "st${each.key}131214"
+  name                = name = "st${replace(each.key, "-", "")}131214"
   resource_group_name = each.value.name
   location            = each.value.location
 
