@@ -4,11 +4,19 @@ resource "azurerm_resource_group" "rg" {
   name     = each.key
   location = each.value
 }
+resource "random_string" "suffix" {
+  for_each = azurerm_resource_group.rg
 
+  length  = 6
+  upper   = false
+  lower   = true
+  numeric = true
+  special = false
+}
 resource "azurerm_storage_account" "example" {
   for_each = azurerm_resource_group.rg
 
-  name                = name = "st${replace(each.key, "-", "")}131214"
+  name = "st${random_string.suffix[each.key].result}${substr(each.key, 0, 3)}"
   resource_group_name = each.value.name
   location            = each.value.location
 
