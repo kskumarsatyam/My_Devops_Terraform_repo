@@ -7,7 +7,7 @@ resource "azurerm_resource_group" "rg" {
 resource "random_string" "suffix" {
   for_each = azurerm_resource_group.rg
 
-  length  = 6
+  length  = 5
   upper   = false
   lower   = true
   numeric = true
