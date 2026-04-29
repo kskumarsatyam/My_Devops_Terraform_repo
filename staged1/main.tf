@@ -16,7 +16,11 @@ resource "random_string" "suffix" {
 resource "azurerm_storage_account" "example" {
   for_each = azurerm_resource_group.rg
 
-  name = "st${random_string.suffix[each.key].result}${substr(each.key, 0, 3)}"
+  name = substr(
+    lower(
+      replace("st${each.key}${random_string.suffix[each.key].result}", "/[^a-zA-Z0-9]/", "")
+    ), 0, 24
+  )
   resource_group_name = each.value.name
   location            = each.value.location
 
