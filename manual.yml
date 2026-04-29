@@ -12,8 +12,8 @@ variables:
   azureServiceConnection: 'devoptoazureconnection'
   terraformWorkingDir: '$(System.DefaultWorkingDirectory)\staged'   # folder where .tf files exist
 stages:
-  - stage: plan_stage
-    displayName: plan_stage
+  - stage: deployment_stage
+    displayName: deployment_stage
 
     jobs:
       - job: terraform_plan_job
@@ -23,7 +23,7 @@ stages:
         - checkout: self
 
         - task: TerraformInstaller@1
-          displayName: Terraform install
+          displayName: Terraform_install
           inputs:
             terraformVersion: 'latest'
 
