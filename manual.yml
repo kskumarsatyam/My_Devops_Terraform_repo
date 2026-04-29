@@ -6,38 +6,91 @@
 trigger:
 - none
 
-pool: mypool
-  
+pool:
+  name: mypool
+
 variables:
   azureServiceConnection: 'devoptoazureconnection'
-  terraformWorkingDir: '$(System.DefaultWorkingDirectory)\staged'   # folder where .tf files exist
+  terraformWorkingDir: '$(System.DefaultWorkingDirectory)\staged'
+
 stages:
-  - stage: deployment_stage
-    displayName: deployment_stage
 
-    jobs:
-      - job: terraform_plan_job
-        displayName: terraform_plan_job
+# =========================
+# PLAN STAGE
+# =========================
+- stage: Plan_stage
+  displayName: Plan_stage
+  jobs:
 
-        steps:
-        - checkout: self
+  - job: terraform_plan_job
+    displayName: terraform_plan_job
+    steps:
 
-        - task: TerraformInstaller@1
-          displayName: Terraform_install
-          inputs:
-            terraformVersion: 'latest'
+    - checkout: self
 
-        - task: AzureCLI@2
-          displayName: Terraform Init & Apply
-          inputs:
+    - task: TerraformInstaller@1
+      displayName: Terraform_install
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: AzureCLI@2
+      displayName: Terraform Init & Plan
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: ps
+        scriptLocation: inlineScript
+        workingDirectory: $(terraformWorkingDir)
+        inlineScript: |
+          terraform init
+          terraform validate
+          terraform plan -out=tfplan
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish tfplan artifact
+      inputs:
+        targetPath: '$(terraformWorkingDir)'
+        artifact: 'tfplan-artifact'
+
+
+# =========================
+# APPLY STAGE (WITH APPROVAL)
+# =========================
+- stage: Apply
+  displayName: Terraform Apply
+  dependsOn: Plan_stage
+  condition: succeeded()
+
+  jobs:
+
+  - deployment: TerraformApply
+    displayName: Apply with Approval
+    environment: 'terraform-approval-env'
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Terraform_install
+            inputs:
+              terraformVersion: 'latest'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download tfplan artifact
+            inputs:
+              artifact: 'tfplan-artifact'
+              path: '$(terraformWorkingDir)'
+
+          - task: AzureCLI@2
+            displayName: Terraform Apply
+            inputs:
               azureSubscription: $(azureServiceConnection)
               scriptType: ps
               scriptLocation: inlineScript
               workingDirectory: $(terraformWorkingDir)
               inlineScript: |
                 terraform init
-                terraform validate
-                terraform plan -out=tfplan
                 terraform apply -auto-approve tfplan
-
-   
