@@ -6,8 +6,8 @@
 trigger:
 - main
 
-pool:
-  vmImage: ubuntu-latest
+pool: mypool
+  
 
 stages:
   - stage: plan_stage
