@@ -1,2 +1,2 @@
-resource_group_name = "demo-rg-stage10"
+resource_group_name = "demo-rg-stage"
 location            = "Central India"
