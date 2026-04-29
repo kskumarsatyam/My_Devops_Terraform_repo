@@ -10,8 +10,8 @@ pool:
   vmImage: ubuntu-latest
 
 stages:
-  - stage: plan stage
-    displayName: plan stage
+  - stage: plan_stage
+    displayName: plan_stage
 
     jobs:
       - job: terraform_plan_job
