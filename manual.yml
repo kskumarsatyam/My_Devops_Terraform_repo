@@ -4,11 +4,13 @@
 # https://aka.ms/yaml
 
 trigger:
-- main
+- none
 
 pool: mypool
   
-
+variables:
+  azureServiceConnection: 'devoptoazureconnection'
+  terraformWorkingDir: '$(System.DefaultWorkingDirectory)\staged'   # folder where .tf files exist
 stages:
   - stage: plan_stage
     displayName: plan_stage
@@ -24,5 +26,18 @@ stages:
           displayName: Terraform install
           inputs:
             terraformVersion: 'latest'
+
+        - task: AzureCLI@2
+          displayName: Terraform Init & Apply
+          inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: ps
+              scriptLocation: inlineScript
+              workingDirectory: $(terraformWorkingDir)
+              inlineScript: |
+                terraform init
+                terraform validate
+                terraform plan -out=tfplan
+                terraform apply -auto-approve tfplan
 
    
