@@ -40,7 +40,7 @@ jobs:
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
       # CRITICAL: This tells the agent to run inside your folder
-      workingDirectory: (System.DefaultWorkingDirectory)\staged2
+      workingDirectory: '$(System.DefaultWorkingDirectory)\staged2'
       inlineScript: |
         # Initialize (Reads backend.tf inside the folder)
         terraform init
