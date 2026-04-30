@@ -7,7 +7,7 @@ parameters:
 - name: terraformFolder
   displayName: "Folder Path in Repo"
   type: string
-  default: 'System.DefaultWorkingDirectory\' # Change this to match your folder name
+  default: '$(System.DefaultWorkingDirectory)\staged1' # Change this to match your folder name
 
 - name: storageName
   displayName: "New Storage Account Name"
@@ -27,8 +27,8 @@ trigger: none
 jobs:
 - job: DeployFromFolder
   displayName: 'Terraform via Azure CLI'
-  pool:
-    vmImage: 'windows-latest'
+  pool: mypool
+   
   
   steps:
   - task: TerraformInstaller@1
