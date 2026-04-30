@@ -1,0 +1,60 @@
+parameters:
+- name: serviceConnection
+  displayName: "Azure Service Connection"
+  type: string
+  default: 'My-Azure-Connection'
+
+- name: storageName
+  displayName: "New Storage Account Name"
+  type: string
+
+- name: resourceGroupName
+  displayName: "Target Resource Group"
+  type: string
+
+- name: region
+  displayName: "Location"
+  type: string
+  default: 'East US'
+  values:
+  - 'East US'
+  - 'West US'
+  - 'North Europe'
+
+trigger: none # Manual run only
+
+jobs:
+- job: DeployWithCLI
+  displayName: 'Terraform via Azure CLI'
+  pool:
+    vmImage: 'windows-latest'
+  
+  steps:
+  # Install Terraform on the Windows Agent
+  - task: TerraformInstaller@1
+    inputs:
+      terraformVersion: 'latest'
+
+  # Use Azure CLI to run Terraform commands
+  - task: AzureCLI@2
+    displayName: 'Terraform Init and Apply'
+    inputs:
+      azureSubscription: '${{ parameters.serviceConnection }}'
+      scriptType: 'pscore'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        # Initialize (Reads backend.tf automatically)
+        terraform init
+
+        # Plan to show what will happen
+        terraform plan `
+          -var="st_name=${{ parameters.storageName }}" `
+          -var="rg_name=${{ parameters.resourceGroupName }}" `
+          -var="location=${{ parameters.region }}"
+
+        # Apply the changes
+        terraform apply `
+          -var="st_name=${{ parameters.storageName }}" `
+          -var="rg_name=${{ parameters.resourceGroupName }}" `
+          -var="location=${{ parameters.region }}" `
+          -auto-approve
