@@ -37,7 +37,7 @@ jobs:
     displayName: 'Terraform Init and Apply'
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
-      scriptType: 'pscore'
+      scriptType: 'ps'
       scriptLocation: 'inlineScript'
       # Correct syntax for Windows Agent:
       workingDirectory: '$(System.DefaultWorkingDirectory)\staged2'
