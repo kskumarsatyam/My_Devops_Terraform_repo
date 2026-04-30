@@ -43,7 +43,7 @@ jobs:
       scriptType: 'pscore'
       scriptLocation: 'inlineScript'
       # CRITICAL: This tells the agent to run inside your folder
-      workingDirectory: '$(System.DefaultWorkingDirectory)/${{ parameters.terraformFolder }}'
+      workingDirectory: $(terraformWorkingDir)
       inlineScript: |
         # Initialize (Reads backend.tf inside the folder)
         terraform init
