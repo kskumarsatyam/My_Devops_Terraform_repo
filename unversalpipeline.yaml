@@ -4,15 +4,15 @@ parameters:
   type: string
   default: 'My-Azure-Connection'
 
-
-
 - name: storageName
   displayName: "New Storage Account Name"
   type: string
+  default: '' # Adding a default (even empty) helps the UI render the input box
 
 - name: resourceGroupName
   displayName: "Target Resource Group"
   type: string
+  default: '' 
 
 - name: region
   displayName: "Location"
@@ -24,27 +24,29 @@ trigger: none
 jobs:
 - job: DeployFromFolder
   displayName: 'Terraform via Azure CLI'
-  pool: mypool
+  pool: mypool # Ensure your Windows agent is in this pool
   
   steps:
   - task: TerraformInstaller@1
+    displayName: 'Install Terraform'
     inputs:
       terraformVersion: 'latest'
 
-  # The Azure CLI task now points to your specific folder
-    - task: AzureCLI@2
+  - task: AzureCLI@2
     displayName: 'Terraform Init and Apply'
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
-      # Correct syntax for Windows Agent:
+      # Corrected working directory syntax
       workingDirectory: '$(System.DefaultWorkingDirectory)\staged2'
       inlineScript: |
+        # Initialize Terraform
         terraform init
+
+        # Run Apply
         terraform apply `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
           -auto-approve
-
