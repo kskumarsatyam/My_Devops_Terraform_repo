@@ -33,21 +33,19 @@ jobs:
       terraformVersion: 'latest'
 
   # The Azure CLI task now points to your specific folder
-  - task: AzureCLI@2
+    - task: AzureCLI@2
     displayName: 'Terraform Init and Apply'
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
-      scriptType: 'ps'
+      scriptType: 'pscore'
       scriptLocation: 'inlineScript'
-      # CRITICAL: This tells the agent to run inside your folder
+      # Correct syntax for Windows Agent:
       workingDirectory: '$(System.DefaultWorkingDirectory)\staged2'
       inlineScript: |
-        # Initialize (Reads backend.tf inside the folder)
         terraform init
-
-        # Apply using variables from the pipeline
         terraform apply `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
           -auto-approve
+
