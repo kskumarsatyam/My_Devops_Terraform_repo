@@ -11,7 +11,7 @@ provider "azurerm" {
   features {}
 }
 
-module "azure_resource_group" {
+module "resource_group" {
   source = "../modules/storage"
   name     = var.rg_name
   location = var.location
