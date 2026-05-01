@@ -32,7 +32,7 @@ jobs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       # Handle the space in "modular approach" using quotes
-      workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\staged2'
+      workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
       inlineScript: |
         # Initialize
         terraform init
