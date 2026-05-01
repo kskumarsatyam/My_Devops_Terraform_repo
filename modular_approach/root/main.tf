@@ -12,7 +12,7 @@ provider "azurerm" {
 }
 
 module "azurerm_resource_group" {
-  source = ""../modules/storage""
+  source = "../modules/storage"
   name     = var.rg_name
   location = var.location
 }
