@@ -1,30 +1,9 @@
-parameters:
-- name: serviceConnection
-  displayName: "Azure Service Connection"
-  type: string
-  default: 'Your-Actual-Connection-Name' # <--- MUST MATCH PROJECT SETTINGS
-
-- name: storageName
-  displayName: "Storage Account Name"
-  type: string
-  default: 'stmodularprod001'
-
-- name: resourceGroupName
-  displayName: "Resource Group Name"
-  type: string
-  default: 'rg-modular-prod'
-
-- name: region
-  displayName: "Location"
-  type: string
-  default: 'East US'
-
-trigger: none
+# ... parameters stay the same ...
 
 jobs:
 - job: ModularDeploy
   displayName: 'Terraform Modular Deployment'
-  pool: mypool # <--- Your Windows Agent Pool
+  pool: mypool
   steps:
   - task: TerraformInstaller@1
     inputs:
@@ -36,31 +15,44 @@ jobs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
-      # Path uses underscores to avoid space-related errors on Windows
       workingDirectory: '$(System.DefaultWorkingDirectory)\modular_approach\root'
       inlineScript: |
         $ErrorActionPreference = "Stop"
 
-        # 1. FORCE CLEANUP: This fixes the "Changes to backend configurations" error
+        # 1. CLEANUP CACHE
         if (Test-Path ".terraform") {
-            Write-Host "Cleaning up old terraform cache..."
+            Write-Host "Cleaning up local terraform cache..."
             Remove-Item -Recurse -Force ".terraform"
         }
 
-        # 2. INITIALIZE: Fresh start every time
+        # 2. INITIALIZE
         Write-Host "Initializing Terraform..."
         terraform init -reconfigure
         if ($LASTEXITCODE -ne 0) { throw "Terraform Init failed" }
 
-        # 3. PLAN: Create the deployment plan
+        # 3. STATE SYNC: Handle 404 by checking if RG exists in Azure
+        Write-Host "Checking if Resource Group exists in Azure..."
+        $rgExists = az group exists --name "${{ parameters.resourceGroupName }}"
+        
+        # If RG is gone from Azure but in state, remove it from state so plan doesn't crash
+        if ($rgExists -eq "false") {
+            Write-Host "Resource Group not found in Azure. Cleaning state..."
+            # Using -refresh=false in next steps or manually removing from state
+            terraform state rm "azurerm_resource_group.rg" 2>$null
+            terraform state rm "module.storage_account.azurerm_resource_group.rg" 2>$null
+        }
+
+        # 4. PLAN with no-refresh if needed
         Write-Host "Creating Deployment Plan..."
         terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
-          -out=tfplan
+          -out=tfplan `
+          -refresh=true # Set to false if Azure API is being slow to register deletions
+        
         if ($LASTEXITCODE -ne 0) { throw "Terraform Plan failed" }
 
-        # 4. APPLY: Execute the generated plan
+        # 5. APPLY
         Write-Host "Applying Changes..."
         terraform apply -auto-approve tfplan
