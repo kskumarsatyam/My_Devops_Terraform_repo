@@ -17,10 +17,11 @@ resource "azurerm_resource_group" "rg" {
 }
 
 module "storage_account" {
+  # This goes UP one level from 'root' then into 'modules/storage'
   source = "../modules/storage"
   
-  # Logic to ensure the name is valid for Azure
-  name                = lower(replace(var.st_name, "/[^a-zA-Z0-9]/", ""))
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  st_name = var.st_name
+  rg_name = var.rg_name
+  location = var.location
 }
+
