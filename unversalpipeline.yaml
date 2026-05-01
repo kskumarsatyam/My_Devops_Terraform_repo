@@ -1,17 +1,11 @@
 parameters:
 - name: serviceConnection
-  displayName: "Azure Service Connection"
   type: string
   default: 'Your-Actual-Connection-Name'
-
 - name: storageName
   type: string
-  default: 'stmodularprod01'
-
 - name: resourceGroupName
   type: string
-  default: 'rg-modular-prod'
-
 - name: region
   type: string
   default: 'East US'
@@ -32,25 +26,23 @@ jobs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
+      # Ensure this path matches your repo exactly
       workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
       inlineScript: |
-        # 1. Initialize with -reconfigure to fix the backend error
+        # 1. Force re-initialization to ignore backend mismatches
         Write-Host "Initializing Terraform..."
         terraform init -reconfigure
+        if ($LASTEXITCODE -ne 0) { throw "Terraform Init failed" }
 
-        # 2. Plan (Save output to tfplan)
+        # 2. Generate the plan
         Write-Host "Creating Deployment Plan..."
         terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
           -out=tfplan
+        if ($LASTEXITCODE -ne 0) { throw "Terraform Plan failed" }
 
-        # Check if plan was created successfully
-        if (Test-Path "tfplan") {
-            Write-Host "Plan file created successfully. Applying Changes..."
-            terraform apply tfplan
-        } else {
-            Write-Error "Terraform Plan failed to generate the tfplan file. Stopping execution."
-            exit 1
-        }
+        # 3. Apply the specific plan file
+        Write-Host "Applying Changes..."
+        terraform apply -auto-approve tfplan
