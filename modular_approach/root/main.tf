@@ -23,6 +23,7 @@ module "storage_account" {
   st_name  = lower(replace(var.st_name, "/[^a-zA-Z0-9]/", ""))
   rg_name  = var.rg_name
   location = var.location
+  depends_on = [module.resource_group]
 }
 
 
