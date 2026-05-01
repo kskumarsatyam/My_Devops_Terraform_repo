@@ -2,51 +2,55 @@ parameters:
 - name: serviceConnection
   displayName: "Azure Service Connection"
   type: string
-  default: 'My-Azure-Connection'
+  default: 'Your-Actual-Connection-Name'
 
 - name: storageName
-  displayName: "New Storage Account Name"
   type: string
-  default: '' # Adding a default (even empty) helps the UI render the input box
+  default: 'stmodularprod01'
 
 - name: resourceGroupName
-  displayName: "Target Resource Group"
   type: string
-  default: '' 
+  default: 'rg-modular-prod'
 
 - name: region
-  displayName: "Location"
   type: string
   default: 'East US'
 
 trigger: none
 
 jobs:
-- job: DeployFromFolder
-  displayName: 'Terraform via Azure CLI'
-  pool: mypool # Ensure your Windows agent is in this pool
-  
+- job: ModularDeploy
+  pool: mypool
   steps:
   - task: TerraformInstaller@1
-    displayName: 'Install Terraform'
     inputs:
       terraformVersion: 'latest'
 
   - task: AzureCLI@2
-    displayName: 'Terraform Init and Apply'
+    displayName: 'Terraform Plan and Apply'
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
-      # Corrected working directory syntax
-      workingDirectory: '$(System.DefaultWorkingDirectory)\staged2'
+      workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
       inlineScript: |
-        # Initialize Terraform
-        terraform init
+        # 1. Initialize with -reconfigure to fix the backend error
+        Write-Host "Initializing Terraform..."
+        terraform init -reconfigure
 
-        # Run Apply
-        terraform apply `
+        # 2. Plan (Save output to tfplan)
+        Write-Host "Creating Deployment Plan..."
+        terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
-          -auto-approve
+          -out=tfplan
+
+        # Check if plan was created successfully
+        if (Test-Path "tfplan") {
+            Write-Host "Plan file created successfully. Applying Changes..."
+            terraform apply tfplan
+        } else {
+            Write-Error "Terraform Plan failed to generate the tfplan file. Stopping execution."
+            exit 1
+        }
