@@ -1,3 +1,11 @@
-variable "name" {}
-variable "resource_group_name" {}
-variable "location" {}
+variable "st_name" {
+  type = string
+}
+
+variable "rg_name" {
+  type = string
+}
+
+variable "location" {
+  type = string
+}
