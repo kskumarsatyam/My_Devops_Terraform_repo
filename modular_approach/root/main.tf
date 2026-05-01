@@ -11,12 +11,7 @@ provider "azurerm" {
   features {}
 }
 
-module "resource_group" {
-  source = "../modules/storage"
-  rg_name     = var.rg_name
-  st_name  = lower(replace(var.st_name, "/[^a-zA-Z0-9]/", ""))
-  location = var.location
-}
+
 
 module "storage_account" {
   source   = "../modules/storage"
