@@ -2,7 +2,7 @@ parameters:
 - name: serviceConnection
   displayName: "Azure Service Connection"
   type: string
-  default: 'Your-Actual-Connection-Name' # MUST BE VALID TO UNLOCK UI
+  default: 'Your-Actual-Connection-Name'
 
 - name: storageName
   type: string
@@ -27,19 +27,25 @@ jobs:
       terraformVersion: 'latest'
 
   - task: AzureCLI@2
-    displayName: 'Terraform Apply'
+    displayName: 'Terraform Plan and Apply'
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
-      # Handle the space in "modular approach" using quotes
+      # Path adjusted for your "modular approach" folder
       workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
       inlineScript: |
-        # Initialize
+        # 1. Initialize
+        Write-Host "Initializing Terraform..."
         terraform init
 
-        # Apply using variables
-        terraform apply `
+        # 2. Plan (Shows what will happen)
+        Write-Host "Creating Deployment Plan..."
+        terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
-          -auto-approve
+          -out=tfplan
+
+        # 3. Apply (Uses the plan file created above)
+        Write-Host "Applying Changes..."
+        terraform apply tfplan
