@@ -17,11 +17,10 @@ resource "azurerm_resource_group" "rg" {
 }
 
 module "storage_account" {
-  # This goes UP one level from 'root' then into 'modules/storage'
-  source = "../modules/storage"
-  
-  st_name = var.st_name
-  rg_name = var.rg_name
+  source   = "../modules/storage"
+  st_name  = lower(replace(var.st_name, "/[^a-zA-Z0-9]/", ""))
+  rg_name  = var.rg_name
   location = var.location
 }
+
 
