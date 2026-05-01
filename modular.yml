@@ -31,14 +31,16 @@ jobs:
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
-      # Path adjusted for your "modular approach" folder
+      # THIS WAS MISSING:
+      scriptLocation: 'inlineScript'
+      # Path adjusted for your folder with spaces
       workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
       inlineScript: |
         # 1. Initialize
         Write-Host "Initializing Terraform..."
         terraform init
 
-        # 2. Plan (Shows what will happen)
+        # 2. Plan
         Write-Host "Creating Deployment Plan..."
         terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
@@ -46,6 +48,6 @@ jobs:
           -var="location=${{ parameters.region }}" `
           -out=tfplan
 
-        # 3. Apply (Uses the plan file created above)
+        # 3. Apply
         Write-Host "Applying Changes..."
         terraform apply tfplan
