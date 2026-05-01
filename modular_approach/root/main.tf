@@ -11,7 +11,8 @@ provider "azurerm" {
   features {}
 }
 
-resource "azurerm_resource_group" "rg" {
+module "azurerm_resource_group" "rg" {
+  source = ""../modules/storage""
   name     = var.rg_name
   location = var.location
 }
