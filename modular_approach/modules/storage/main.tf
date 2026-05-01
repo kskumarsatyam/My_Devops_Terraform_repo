@@ -8,7 +8,7 @@ resource "azurerm_resource_group" "rg" {
 }
 
 resource "azurerm_storage_account" "st" {
-  st_name                     = var.st_name
+  name                     = var.st_name
   resource_group_name      = var.rg_name
   location                 = var.location
   account_tier             = "Standard"
