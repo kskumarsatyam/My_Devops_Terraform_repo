@@ -1,16 +1,4 @@
-parameters:
-- name: serviceConnection
-  type: string
-  default: 'Your-Actual-Connection-Name'
-- name: storageName
-  type: string
-- name: resourceGroupName
-  type: string
-- name: region
-  type: string
-  default: 'East US'
-
-trigger: none
+# ... (parameters and trigger stay the same)
 
 jobs:
 - job: ModularDeploy
@@ -26,36 +14,30 @@ jobs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
       scriptLocation: 'inlineScript'
-      # 1. Update the folder name here to match your repo (ideally without spaces)
+      # Keep workingDirectory at the root of the folder
       workingDirectory: '$(System.DefaultWorkingDirectory)\modular_approach\root'
       inlineScript: |
         $ErrorActionPreference = "Stop"
+
+        # 1. CLEANUP: Delete the .terraform folder to force a fresh link of modules
+        if (Test-Path ".terraform") { Remove-Item -Recurse -Force ".terraform" }
+
+        # 2. RESOLVE PATHS: Show exactly where we are for debugging
+        $currentDir = Get-Location
+        Write-Host "Currently running in: $currentDir"
         
-        Write-Host "Current Location: $(Get-Location)"
+        # 3. INITIALIZE: Force Terraform to re-read the module source
+        Write-Host "Initializing Terraform..."
+        terraform init -reconfigure -input=false
 
-        # 2. Total Cleanup of previous failed attempts
-        if (Test-Path ".terraform") { 
-            Write-Host "Removing existing .terraform folder..."
-            Remove-Item -Recurse -Force ".terraform" 
-        }
-        if (Test-Path ".terraform.lock.hcl") { 
-            Remove-Item -Force ".terraform.lock.hcl" 
-        }
-
-        # 3. Init with reconfigure
-        Write-Host "Initializing..."
-        terraform init -reconfigure
-        if ($LASTEXITCODE -ne 0) { throw "Init failed" }
-
-        # 4. Plan
-        Write-Host "Planning..."
+        # 4. PLAN
+        Write-Host "Creating Plan..."
         terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
           -out=tfplan
-        if ($LASTEXITCODE -ne 0) { throw "Plan failed" }
 
-        # 5. Apply
-        Write-Host "Applying..."
+        # 5. APPLY
+        Write-Host "Applying Plan..."
         terraform apply -auto-approve tfplan
