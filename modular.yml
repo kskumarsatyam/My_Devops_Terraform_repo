@@ -1,17 +1,11 @@
 parameters:
 - name: serviceConnection
-  displayName: "Azure Service Connection"
   type: string
   default: 'Your-Actual-Connection-Name'
-
 - name: storageName
   type: string
-  default: 'stmodularprod01'
-
 - name: resourceGroupName
   type: string
-  default: 'rg-modular-prod'
-
 - name: region
   type: string
   default: 'East US'
@@ -31,23 +25,37 @@ jobs:
     inputs:
       azureSubscription: '${{ parameters.serviceConnection }}'
       scriptType: 'ps'
-      # THIS WAS MISSING:
       scriptLocation: 'inlineScript'
-      # Path adjusted for your folder with spaces
-      workingDirectory: '$(System.DefaultWorkingDirectory)\modular approach\root'
+      # 1. Update the folder name here to match your repo (ideally without spaces)
+      workingDirectory: '$(System.DefaultWorkingDirectory)\modular_approach\root'
       inlineScript: |
-        # 1. Initialize
-        Write-Host "Initializing Terraform..."
-        terraform init
+        $ErrorActionPreference = "Stop"
+        
+        Write-Host "Current Location: $(Get-Location)"
 
-        # 2. Plan
-        Write-Host "Creating Deployment Plan..."
+        # 2. Total Cleanup of previous failed attempts
+        if (Test-Path ".terraform") { 
+            Write-Host "Removing existing .terraform folder..."
+            Remove-Item -Recurse -Force ".terraform" 
+        }
+        if (Test-Path ".terraform.lock.hcl") { 
+            Remove-Item -Force ".terraform.lock.hcl" 
+        }
+
+        # 3. Init with reconfigure
+        Write-Host "Initializing..."
+        terraform init -reconfigure
+        if ($LASTEXITCODE -ne 0) { throw "Init failed" }
+
+        # 4. Plan
+        Write-Host "Planning..."
         terraform plan `
           -var="st_name=${{ parameters.storageName }}" `
           -var="rg_name=${{ parameters.resourceGroupName }}" `
           -var="location=${{ parameters.region }}" `
           -out=tfplan
+        if ($LASTEXITCODE -ne 0) { throw "Plan failed" }
 
-        # 3. Apply
-        Write-Host "Applying Changes..."
-        terraform apply tfplan
+        # 5. Apply
+        Write-Host "Applying..."
+        terraform apply -auto-approve tfplan
