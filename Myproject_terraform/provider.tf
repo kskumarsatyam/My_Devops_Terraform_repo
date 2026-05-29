@@ -2,17 +2,26 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.62.1"
+      version = "=4.1.0"
     }
+  }
+
+  backend "azurerm" {
+    resource_group_name  = "infra_group"       
+    storage_account_name = "testaccount051088" 
+    container_name       = "backend-data"     
+    key                  = "terraform.tfstate" 
+    
+    # CORRECT SYNTAX: Forces backend initialization to use environment variable, not CLI
+    use_msi = false
   }
 }
 
+# Configure the Microsoft Azure Provider
 provider "azurerm" {
   features {}
-
-  # Service Principal authentication
-  client_id       = "fa7361ba-a92e-42b3-9893-5a97e3cb80f0"
-  client_secret   = "fW18Q~HvxRNSKUpe9hIsoOhRPRxxNq97Em-W~bTB"
-  tenant_id       = "4b160a7b-32ac-4e50-b069-a6304394236f"
-  subscription_id = "9ff9c4f2-eb4e-4430-b232-ac9011fe99bc"
+  
+  # Forces the subsequent plan/apply runner jobs to use environment variables
+  use_cli = false
 }
+
